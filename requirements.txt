@@ -1,0 +1,14 @@
+# 核心浏览器层 - C++级Firefox指纹保护
+camoufox[geoip]
+
+# TLS/JA3 指纹伪装层
+curl_cffi>=0.7.0
+
+# 配置
+pyyaml>=6.0
+
+# 日志
+loguru>=0.7.0
+
+# 工具
+python-dotenv>=1.0.0

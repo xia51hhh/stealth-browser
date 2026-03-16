@@ -1,0 +1,24 @@
+# Python虚拟环境（体积巨大，不上传）
+bin/
+lib/
+lib64/
+include/
+pyvenv.cfg
+share/
+
+# Camoufox Firefox二进制（体积巨大）
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 日志和截图
+logs/
+tests/screenshots/
+
+# 本地配置
+.env
+
+# 用户数据目录
+profiles/
