@@ -29,8 +29,8 @@ class StealthBrowser:
 
     def __init__(self, config_path: str = None):
         self.config = Config(config_path)
-        self._camoufox_cm = None
-        self._context = None
+        self._browser = None   # camoufox Browser对象
+        self._context = None   # Playwright BrowserContext
         self._setup_logging()
 
     def _setup_logging(self):
@@ -47,33 +47,22 @@ class StealthBrowser:
         logger.addHandler(handler)
         logger.setLevel(getattr(logging, level.upper(), logging.INFO))
 
-    async def __aenter__(self):
-        await self.launch()
-        return self
-
-    async def __aexit__(self, *args):
-        await self.close()
-
-    async def launch(self):
-        """启动浏览器（Camoufox，Firefox引擎，C++级指纹保护）"""
+    def _build_launch_kwargs(self) -> dict:
+        """构建camoufox启动参数，与camoufox版本解耦——只使用公开文档参数。"""
         browser_cfg = self.config.browser
         proxy_cfg = self.config.proxy
 
-        # 构建 camoufox 启动参数
-        headless_mode = browser_cfg.get("headless", "virtual")
-        launch_kwargs = {
-            "headless": headless_mode,
+        kwargs = {
+            "headless": browser_cfg.get("headless", "virtual"),
             "os": browser_cfg.get("os", "windows"),
             "block_webrtc": True,
+            "geoip": browser_cfg.get("geoip", True),
         }
 
-        # 微软字体注入（提升指纹真实性）
+        # 微软字体（可选，目录不存在时跳过）
         ms_fonts = glob.glob('/usr/share/fonts/truetype/msttcorefonts/*.ttf')
         if ms_fonts:
-            launch_kwargs["fonts"] = ms_fonts
-
-        # GeoIP自动时区/语言
-        launch_kwargs["geoip"] = browser_cfg.get("geoip", True)
+            kwargs["fonts"] = ms_fonts
 
         # 代理
         if proxy_cfg.get("enabled"):
@@ -81,59 +70,59 @@ class StealthBrowser:
             if proxy_cfg.get("username"):
                 proxy["username"] = proxy_cfg["username"]
                 proxy["password"] = proxy_cfg.get("password", "")
-            launch_kwargs["proxy"] = proxy
+            kwargs["proxy"] = proxy
 
-        logger.info("启动 Camoufox | os=%s headless=%s geoip=%s fonts=%d",
-                     launch_kwargs.get("os"),
-                     launch_kwargs["headless"],
-                     launch_kwargs.get("geoip"),
-                     len(ms_fonts))
+        return kwargs
 
-        self._camoufox_cm = AsyncCamoufox(**launch_kwargs)
-        browser = await self._camoufox_cm.__aenter__()
+    async def __aenter__(self):
+        launch_kwargs = self._build_launch_kwargs()
+        browser_cfg = self.config.browser
 
-        self._context = await browser.new_context(
+        logger.info("启动 Camoufox | os=%s headless=%s",
+                    launch_kwargs.get("os"), launch_kwargs.get("headless"))
+
+        # 使用标准 async with，camoufox更新时只需检查这一处参数
+        self._camoufox = AsyncCamoufox(**launch_kwargs)
+        self._browser = await self._camoufox.__aenter__()
+
+        self._context = await self._browser.new_context(
             viewport=browser_cfg.get("viewport") or {"width": 1920, "height": 1080},
             locale=browser_cfg.get("locale", "zh-CN"),
         )
 
-        # 注入额外隐身脚本（WebRTC防泄漏等，camoufox未覆盖的部分）
+        # 注入补充隐身脚本（WebRTC防泄漏等camoufox未覆盖的部分）
         disable_webrtc = self.config.webrtc.get("disable", True)
         stealth_scripts = get_stealth_scripts(disable_webrtc)
         for script in stealth_scripts:
             await self._context.add_init_script(script)
 
-        logger.info("Camoufox 启动成功，已注入 %d 个补充隐身脚本", len(stealth_scripts))
-        return self._context
+        logger.info("Camoufox 启动成功，注入 %d 个补充脚本", len(stealth_scripts))
+        return self
+
+    async def __aexit__(self, *args):
+        if self._context:
+            await self._context.close()
+            self._context = None
+        if hasattr(self, '_camoufox') and self._camoufox:
+            await self._camoufox.__aexit__(*args)
+            self._camoufox = None
+        logger.info("浏览器已关闭")
 
     async def new_page(self) -> "StealthPage":
-        """创建新的隐身页面（含 dialog 延迟处理）"""
+        """创建新的隐身页面。"""
+        import random
         page = await self._context.new_page()
 
-        # 处理 alert/confirm/prompt 弹窗 — 加随机延迟模拟人类反应
-        import random
         async def _handle_dialog(dialog):
-            delay = random.uniform(1.0, 4.0)
-            await asyncio.sleep(delay)
+            await asyncio.sleep(random.uniform(1.0, 4.0))
             await dialog.dismiss()
 
         page.on("dialog", lambda d: asyncio.ensure_future(_handle_dialog(d)))
-
         return StealthPage(page, self.config.behavior)
 
     @property
     def context(self):
         return self._context
-
-    async def close(self):
-        """关闭浏览器"""
-        if self._context:
-            await self._context.close()
-            self._context = None
-        if self._camoufox_cm:
-            await self._camoufox_cm.__aexit__(None, None, None)
-            self._camoufox_cm = None
-        logger.info("浏览器已关闭")
 
 
 class StealthPage:
