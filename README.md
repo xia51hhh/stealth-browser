@@ -17,6 +17,63 @@ HTTP层    →  curl_cffi 0.14.0  TLS/JA3 指纹伪装（纯HTTP场景）
 
 ---
 
+## 反检测测试报告（2026-03-16，有头virtual模式）
+
+> 测试配置：`headless='virtual'`，`os='windows'`，`geoip=True`，代理池10个出口IP
+
+### bot.sannysoft.com — 28/31 通过 ✅
+
+| 检测项 | 结果 |
+|--------|------|
+| `navigator.webdriver` | ✅ missing（隐藏） |
+| WebDriver Advanced | ✅ passed |
+| SELENIUM_DRIVER | ✅ ok |
+| 所有 PHANTOM_* (8项) | ✅ ok |
+| 所有 HEADCHR_* (5项) | ✅ ok |
+| CHR_BATTERY / CHR_MEMORY | ✅ ok |
+| VIDEO_CODECS / SEQUENTUM | ✅ ok |
+| Chrome (New) | ❌ missing — **预期**，Firefox无`window.chrome` |
+| WebGL Vendor/Renderer | ❌ virtual模式下GPU软渲染，WebGL context存在但参数不同 |
+
+### creepjs — headless 0% ✅
+
+| 指标 | 结果 |
+|------|------|
+| `chromium: false` | ✅ |
+| `0% like headless` | ✅ |
+| `0% headless` | ✅ |
+| `0% stealth` | ✅ |
+| WebRTC | ✅ IP已匿名 |
+| GPU | ✅ Google Inc.(Intel)/ANGLE |
+| Timezone | ✅ 跟随代理IP自动设置 |
+| UserAgent | ✅ Windows NT 10.0 Firefox/135.0 |
+| 字体 | ⚠️ Sans:Linux（camoufox底层限制）|
+
+### browserleaks.com/javascript
+
+| 指标 | 结果 |
+|------|------|
+| `navigator.webdriver` | ✅ `false`（未泄漏）|
+| 127个JS字段 | ✅ 无异常 |
+
+### 代理池
+
+| 端口 | 出口IP | 状态 |
+|------|--------|------|
+| 10000 | 43.199.63.158 (HK) | ✅ |
+| 10001 | 104.28.x.x (CF) | ✅ |
+| 10002 | 103.62.49.130 | ✅ |
+| 10003 | 108.181.23.253 | ✅ |
+| 10004 | 140.238.37.247 | ✅ |
+| 10005 | 130.61.149.111 | ✅ |
+| 10006 | 132.145.62.88 | ✅ |
+| 10008 | 54.249.25.98 (JP) | ✅ |
+| 10009 | 3.1.81.181 (SG) | ✅ |
+| 10010 | 155.117.87.197 | ✅ |
+| 10007 | - | ❌ 不可用 |
+
+---
+
 ## 快速开始
 
 ```bash
